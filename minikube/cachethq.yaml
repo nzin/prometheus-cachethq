@@ -1,0 +1,79 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: cachethq-service
+spec:
+  selector:
+    app: cachethq
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8000
+      nodePort: 30080
+  type: NodePort
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus-cachethq-service
+spec:
+  selector:
+    app: cachethq
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8080
+      nodePort: 30081
+  type: NodePort
+---
+apiVersion: apps/v1beta2
+kind: Deployment
+metadata:
+  name: cachethq
+spec:
+  selector:
+    matchLabels:
+      app: cachethq
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: cachethq
+    spec:
+      containers:
+      - name: prometheus-cachethq
+        image: nzin/prometheus-cachethq:latest
+        ports:
+          - containerPort: 8080
+        env:
+          - name: PROMETHEUS_TOKEN
+            value: "e78bd74e8af5ef479fe1322deb54e3f9"
+          - name: CACHETHQ_URL
+            value: "http://localhost:8000"
+          - name: CACHETHQ_TOKEN
+            value: "GswCqve7hl9CZKBPDQQr"
+      - name: cachethq
+        image: cachethq/docker:2.3-latest
+        ports:
+          - containerPort: 8000
+        env:
+          - name: DB_DRIVER
+            value: "pgsql"
+          - name: DB_HOST
+            value: "postgresql-service"
+          - name: DB_PORT
+            value: "5432"
+          - name: DB_DATABASE
+            value: "postgres"
+          - name: DB_USERNAME
+            value: "postgres"
+          - name: DB_PASSWORD
+            value: "postgres"
+          - name: DB_PREFIX
+            value: "chq_"
+          - name: APP_KEY
+            value: "146c07ef2479cedcd54c7c2af5cf3a80"
+          - name: APP_LOG
+            value: "errorlog"
+          - name: DEBUG
+            value: "false"

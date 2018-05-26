@@ -1,0 +1,38 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgresql-service
+spec:
+  selector:
+    app: cachethq-postgresql
+  ports:
+    - protocol: TCP
+      port: 5432
+      targetPort: 5432
+---
+apiVersion: apps/v1beta2
+kind: Deployment
+metadata:
+  name: cachethq-postgresql
+spec:
+  selector:
+    matchLabels:
+      app: cachethq-postgresql
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: cachethq-postgresql
+    spec:
+      containers:
+      - name: postgresql
+        image: postgres:9.5
+        ports:
+        - containerPort: 5432
+        env:
+          - name: POSTGRES_USER
+            value: postgres
+          - name: POSTGRES_PASSWORD
+            value: postgres
+
+

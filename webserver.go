@@ -139,12 +139,15 @@ func cachetAlert(componentid, status int, apiURL, apiKEY string) error {
 		Status: status,
 	}
 
+	// by precaution, remove the '/' at the end of apiURL
+	apiURL = strings.TrimRight(apiURL, "/")
+
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(msg); err != nil {
 		return err
 	}
 
-	req, err := http.NewRequest(http.MethodPut, fmt.Sprintf("%sapi/v1/components/%d", apiURL, componentid), &buf)
+	req, err := http.NewRequest(http.MethodPut, fmt.Sprintf("%s/api/v1/components/%d", apiURL, componentid), &buf)
 	if err != nil {
 		return err
 	}
