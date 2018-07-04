@@ -32,7 +32,7 @@ pipeline {
                 }
             }
             steps {
-                dockerBuilder "${env.WORKSPACE}", "ci/prometheus-cachethq", version
+                dockerBuilder "${env.WORKSPACE}", "prometheus-cachethq", version
             }
         }
     }
