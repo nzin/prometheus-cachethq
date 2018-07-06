@@ -21,7 +21,7 @@ You have to configure the Prometheus Alert Manager something like:
 If you have a CachetHQ and a Prometheus running on your local machine
 
     go build .
-    ./prometheus-cachethq -prometheus_token _prometheus_bearer_token_ -cachethq_token _token_
+    ./prometheus-cachethq -prometheus_token _prometheus_bearer_token_ -cachethq_token _token_ -label_name alertname
 
     # to test, you can send by hand an alert to the Prometheus Alert Manager
     curl -H "Content-Type: application/json" -d '[{"labels":{"alertname":"component21"}}]' localhost:9093/api/v1/alerts
