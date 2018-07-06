@@ -19,6 +19,7 @@ type PrometheusCachetConfig struct {
 	PrometheusToken string
 	CachetURL       string
 	CachetToken     string
+	LabelName       string
 	LogLevel        int
 }
 
@@ -34,6 +35,7 @@ func main() {
 	flag.StringVar(&loglevel, "log_level", "info", "log level: [info|debug]")
 	flag.StringVar(&sslCert, "ssl_cert_file", "", "to be used with ssl_key: enable https server")
 	flag.StringVar(&sslKey, "ssl_key_file", "", "to be used with ssl_cert: enable https server")
+	flag.StringVar(&config.LabelName, "label_name", "alertname", "label to look for in Prometheus Alert info")
 	flag.IntVar(&httpPort, "http_port", 8080, "port to listen on")
 
 	flag.Parse()
@@ -61,6 +63,10 @@ func main() {
 	}
 	if os.Getenv("SSL_KEY_FILE") != "" {
 		sslKey = os.Getenv("SSL_KEY_FILE")
+	}
+
+	if os.Getenv("LABEL_NAME") != "" {
+		config.LabelName = os.Getenv("LABEL_NAME")
 	}
 
 	config.LogLevel = LOG_INFO
