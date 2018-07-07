@@ -240,7 +240,7 @@ func SubmitAlert(c *gin.Context, config *PrometheusCachetConfig) {
 		}
 		for _, alert := range alerts.Alerts {
 			// fire something
-			if componentID, ok := list[alert.Labels["alertname"]]; ok {
+			if componentID, ok := list[alert.Labels[config.LabelName]]; ok {
 				if err := cachetAlert(componentID, status, config.CachetURL, config.CachetToken); err != nil {
 					if config.LogLevel == LOG_DEBUG {
 						log.Println(err)
