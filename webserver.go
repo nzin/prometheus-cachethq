@@ -82,6 +82,15 @@ type cachetHqMessageList struct {
 	} `json:"data"`
 }
 
+// cf https://docs.cachethq.io/reference#incidents
+type cachetHqIncident struct {
+	Name            string `json:"name"`
+	Message         string `json:"message"`
+	Status          int    `json:"status"`
+	ComponentID     int    `json:"component_id"`
+	ComponentStatus int    `json:"component_status"`
+}
+
 // cachetList will fetch the different CachetHQ components (id/name) via a GET /api/v1/components
 // it will return a map[componentname]componentid
 func cachetList(apiURL, apiKEY string) (map[string]int, error) {
@@ -134,20 +143,35 @@ func cachetList(apiURL, apiKEY string) (map[string]int, error) {
 // component status: component status: https://docs.cachethq.io/docs/component-statuses
 // - status = 1 for alert resolved
 // - status = 4 for alert fatal
-func cachetAlert(componentid, status int, apiURL, apiKEY string) error {
-	msg := &cachetHqMessage{
-		Status: status,
+func cachetAlert(componentName string, componentID, componentStatus int, apiURL, apiKEY string) error {
+	incidentName := fmt.Sprintf("%s down", componentName)
+	incidentMessage := fmt.Sprintf("Prometheus flagged service %s as down", componentName)
+	incidentStatus := 2 // "Identified"
+
+	// if we are in status = 1 (alert resolved)
+	if componentStatus == 1 {
+		incidentName = fmt.Sprintf("%s up", componentName)
+		incidentMessage = fmt.Sprintf("Prometheus flagged service %s as recovered", componentName)
+		incidentStatus = 4 // "Fixed"
+	}
+
+	incident := &cachetHqIncident{
+		Name:            incidentName,
+		Message:         incidentMessage,
+		Status:          incidentStatus,
+		ComponentID:     componentID,
+		ComponentStatus: componentStatus,
 	}
 
 	// by precaution, remove the '/' at the end of apiURL
 	apiURL = strings.TrimRight(apiURL, "/")
 
 	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(msg); err != nil {
+	if err := json.NewEncoder(&buf).Encode(incident); err != nil {
 		return err
 	}
 
-	req, err := http.NewRequest(http.MethodPut, fmt.Sprintf("%s/api/v1/components/%d", apiURL, componentid), &buf)
+	req, err := http.NewRequest(http.MethodPost, fmt.Sprintf("%s/api/v1/incidents", apiURL), &buf)
 	if err != nil {
 		return err
 	}
@@ -243,7 +267,7 @@ func SubmitAlert(c *gin.Context, config *PrometheusCachetConfig) {
 		for _, alert := range alerts.Alerts {
 			// fire something
 			if componentID, ok := list[alert.Labels[config.LabelName]]; ok {
-				if err := cachetAlert(componentID, status, config.CachetURL, config.CachetToken); err != nil {
+				if err := cachetAlert(alert.Labels[config.LabelName], componentID, status, config.CachetURL, config.CachetToken); err != nil {
 					if config.LogLevel == LOG_DEBUG {
 						log.Println(err)
 					}
