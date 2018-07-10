@@ -264,15 +264,21 @@ func SubmitAlert(c *gin.Context, config *PrometheusCachetConfig) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
+
+		// prometheus can send 2 times the same alerts info in one call
+		alreadyFired := make(map[int]int)
 		for _, alert := range alerts.Alerts {
 			// fire something
 			if componentID, ok := list[alert.Labels[config.LabelName]]; ok {
-				if err := cachetAlert(alert.Labels[config.LabelName], componentID, status, config.CachetURL, config.CachetToken); err != nil {
-					if config.LogLevel == LOG_DEBUG {
-						log.Println(err)
+				if alreadyFired[componentID] == 0 {
+					alreadyFired[componentID] = 1
+					if err := cachetAlert(alert.Labels[config.LabelName], componentID, status, config.CachetURL, config.CachetToken); err != nil {
+						if config.LogLevel == LOG_DEBUG {
+							log.Println(err)
+						}
+						c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+						return
 					}
-					c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-					return
 				}
 			}
 		}
