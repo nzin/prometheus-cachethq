@@ -212,13 +212,15 @@ type PrometheusAlert struct {
 // SubmitAlert receive an alert from Prometheus, and try to forward it to CachetHQ
 func SubmitAlert(c *gin.Context, config *PrometheusCachetConfig) {
 	// check the Bearer
-	bearer := c.GetHeader("Authorization")
-	if bearer != fmt.Sprintf("Bearer %s", config.PrometheusToken) {
-		if config.LogLevel == LOG_DEBUG {
-			log.Println("wrong Authorization header:", bearer)
+	if config.PrometheusToken != "" {
+		bearer := c.GetHeader("Authorization")
+		if bearer != fmt.Sprintf("Bearer %s", config.PrometheusToken) {
+			if config.LogLevel == LOG_DEBUG {
+				log.Println("wrong Authorization header:", bearer)
+			}
+			c.JSON(http.StatusBadRequest, gin.H{"error": "wrong Authorization header"})
+			return
 		}
-		c.JSON(http.StatusBadRequest, gin.H{"error": "wrong Authorization header"})
-		return
 	}
 
 	// read the payload
