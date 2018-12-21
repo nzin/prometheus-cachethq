@@ -13,11 +13,18 @@ pipeline {
         stage('Define Version') {
             steps {
                 script {
-                    version = "1.1.1"
+                    version = "1.1.2"
                 }
             }
         }
 
+        stage('Building...') {
+            steps {
+                ansiColor('xterm') {
+                    sh 'go test .'
+                }
+            }
+        }
         stage('Building...') {
             steps {
                 ansiColor('xterm') {

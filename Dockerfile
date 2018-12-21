@@ -5,6 +5,7 @@ WORKDIR /go/src/github.com/nzin/prometheus-cachethq
 COPY . .
 RUN set -x && \ 
     go get -d -v . && \
+    go test . && \
     CGO_ENABLED=0 GOOS=linux go build -a -o prometheus-cachethq .
 
 

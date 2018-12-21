@@ -93,7 +93,7 @@ type cachetHqIncident struct {
 
 // cachetList will fetch the different CachetHQ components (id/name) via a GET /api/v1/components
 // it will return a map[componentname]componentid
-func cachetList(apiURL, apiKEY string) (map[string]int, error) {
+func cachetList(apiURL, apiKEY string, client *http.Client) (map[string]int, error) {
 	componentsId := make(map[string]int)
 	var message cachetHqMessageList
 
@@ -112,7 +112,6 @@ func cachetList(apiURL, apiKEY string) (map[string]int, error) {
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("X-Cachet-Token", apiKEY)
 
-		client := &http.Client{}
 		resp, err := client.Do(req)
 		if err != nil {
 			return nil, err
@@ -143,7 +142,7 @@ func cachetList(apiURL, apiKEY string) (map[string]int, error) {
 // component status: component status: https://docs.cachethq.io/docs/component-statuses
 // - status = 1 for alert resolved
 // - status = 4 for alert fatal
-func cachetAlert(componentName string, componentID, componentStatus int, apiURL, apiKEY string) error {
+func cachetAlert(componentName string, componentID, componentStatus int, apiURL, apiKEY string, client *http.Client) error {
 	incidentName := fmt.Sprintf("%s down", componentName)
 	incidentMessage := fmt.Sprintf("Prometheus flagged service %s as down", componentName)
 	incidentStatus := 2 // "Identified"
@@ -179,7 +178,6 @@ func cachetAlert(componentName string, componentID, componentStatus int, apiURL,
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-Cachet-Token", apiKEY)
 
-	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
 		return err
@@ -256,7 +254,7 @@ func SubmitAlert(c *gin.Context, config *PrometheusCachetConfig) {
 			status = 4
 		}
 
-		list, err := cachetList(config.CachetURL, config.CachetToken)
+		list, err := cachetList(config.CachetURL, config.CachetToken, config.HttpClient)
 		if err != nil {
 			if config.LogLevel == LOG_DEBUG {
 				log.Println(err)
@@ -272,7 +270,7 @@ func SubmitAlert(c *gin.Context, config *PrometheusCachetConfig) {
 			if componentID, ok := list[alert.Labels[config.LabelName]]; ok {
 				if alreadyFired[componentID] == 0 {
 					alreadyFired[componentID] = 1
-					if err := cachetAlert(alert.Labels[config.LabelName], componentID, status, config.CachetURL, config.CachetToken); err != nil {
+					if err := cachetAlert(alert.Labels[config.LabelName], componentID, status, config.CachetURL, config.CachetToken, config.HttpClient); err != nil {
 						if config.LogLevel == LOG_DEBUG {
 							log.Println(err)
 						}
