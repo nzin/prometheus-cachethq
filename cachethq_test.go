@@ -68,36 +68,22 @@ func setupMockCachetHQ(t *testing.T) {
 				    ]}`)
 		})
 
-	mux.HandleFunc("/api/v1/components/1",
+	mux.HandleFunc("/api/v1/incidents",
 		func(w http.ResponseWriter, r *http.Request) {
-			fmt.Println("mock PUT /api/v1/components/1")
-			assert.Equal(t, "PUT", r.Method)
-			type Status struct {
-				Status int `json:"status"`
+			fmt.Println("mock POST /api/v1/incidents")
+			assert.Equal(t, "POST", r.Method)
+			type incidentStruct struct {
+				Name            string `json:"name"`
+				Message         string `json:"message"`
+				Status          int    `json:"status"`
+				ComponentID     int    `json:"component_id"`
+				ComponentStatus int    `json:"component_status"`
 			}
 			decoder := json.NewDecoder(r.Body)
-			var status Status
-			err := decoder.Decode(&status)
+			var incident incidentStruct
+			err := decoder.Decode(&incident)
 			if err == nil {
-				finalStatus = status.Status
-				fmt.Fprint(w, `{
-				    "data": {
-				        "id": 1,
-				        "name": "component21",
-				        "description": "Description",
-				        "link": "",
-				        "status": 1,
-				        "order": 0,
-				        "group_id": 0,
-				        "created_at": "2015-08-01 12:00:00",
-				        "updated_at": "2015-08-01 12:00:00",
-				        "deleted_at": null,
-				        "status_name": "Operational",
-				        "tags": [
-				            "slug-of-tag": "Tag Name"
-				        ]
-				    }
-				}`)
+				finalStatus = incident.Status
 			}
 		})
 }
@@ -113,6 +99,7 @@ func TestCachetHqComponent21(t *testing.T) {
 	defer teardown()
 
 	config := PrometheusCachetConfig{
+		LabelName:       "alertname",
 		PrometheusToken: "promToken",
 		CachetURL:       mockServer.URL,
 		CachetToken:     "1234567890abcdef",
@@ -146,7 +133,7 @@ func TestCachetHqComponent21(t *testing.T) {
 	defer resp.Body.Close()
 
 	// the status HAS been updated
-	assert.Equal(t, 4, finalStatus)
+	assert.Equal(t, 2, finalStatus)
 }
 
 func TestCachetHqComponent22(t *testing.T) {
