@@ -63,3 +63,22 @@ You can now simulate Prometheus Alertmanager by issuing something like:
 
     curl -X POST http://<minikube>:30081/alert -H 'Authorization: Bearer <prometheus token>' -d '{"receiver":"cachethq-receiver","status":"firing","alerts":[{"status":"firing","labels":{"alertname":"component21"},"annotations":{},"startsAt":"2018-05-22T20:00:32.729840058-04:00","endsAt":"0001-01-01T00:00:00Z","generatorURL":""}],"groupLabels":{"alertname":"component21"},"commonLabels":{"alertname":"component21"},"commonAnnotations":{},"externalURL":"http://localhost.localdomain:9093","version":"4","groupKey":"{}:{alertname=\"component21\"}"}'
 
+# Parameters
+
+Here is the exhaustive list of parameters. You can pass them either as command line parameter, or as env variables (if you use a docker image for example)
+
+| Mandatory                   | command line name        | environment variable name | description                                              |
+| --------------------------- | ------------------------ | ------------------------- | -------------------------------------------------------- |
+| yes                         | prometheus_token         | PROMETHEUS_TOKEN          | token sent by Prometheus in the webhook configuration    |
+| default = http://127.0.0.1/ | cachethq_url             | CACHETHQ_URL              | where to find CachetHQ                                   |
+| yes                         | cachethq_token           | CACHETHQ_TOKEN            | token to send to CachetHQ                                |
+| no                          | cachethq_skip_verify_ssl | CACHETHQ_SKIP_VERIFY_SSL  | No SSL certificate check if accessing CachetHQ via https |
+| no                          | cachethq_root_ca         | CACHETHQ_ROOT_CA          | Root SSL CA file to use against CachetHQ if self sign    |
+| default = info              | log_level                | LOG_LEVEL                 | log level: [info|debug]                                  |
+| no                          | ssl_cert_file            | SSL_CERT_FILE             | to be used with ssl_key: enable https server             |
+| no                          | ssl_key_file             | SSL_KEY_FILE              | to be used with ssl_cert: enable https server            |
+| default = alertname         | label_name               | LABEL_NAME                | label to look for in Prometheus Alert info               |
+| default = 8080              | http_port                | HTTP_PORT                 | port to listen on                                        |
+
+
+
