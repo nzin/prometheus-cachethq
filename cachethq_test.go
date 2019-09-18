@@ -152,7 +152,7 @@ func TestCachetHqComponent22(t *testing.T) {
 	router := PrepareGinRouter(&config)
 
 	server := &http.Server{
-		Addr:           fmt.Sprintf(":9999"),
+		Addr:           fmt.Sprintf(":9998"),
 		Handler:        router,
 		ReadTimeout:    10 * time.Second,
 		WriteTimeout:   10 * time.Second,
@@ -163,7 +163,7 @@ func TestCachetHqComponent22(t *testing.T) {
 	defer server.Close()
 
 	// send an alert
-	url := "http://localhost:9999/alert"
+	url := "http://localhost:9998/alert"
 
 	var jsonStr = []byte(`{"receiver":"cachethq-receiver","status":"firing","alerts":[{"status":"firing","labels":{"alertname":"component22"},"annotations":{},"startsAt":"2018-05-22T20:00:32.729840058-04:00","endsAt":"0001-01-01T00:00: 00Z","generatorURL":""}],"groupLabels":{"alertname":"component22"},"commonLabels":{"alertname":"component22"},"commonAnnotations":{},"externalURL":"http://localhost.localdomain:9093","version":"4","groupKey":"{}:{alertname=\"component22\"}"}`)
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonStr))
