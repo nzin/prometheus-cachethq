@@ -1,4 +1,4 @@
-package prometheuscachethq
+package main
 
 import (
 	"bytes"

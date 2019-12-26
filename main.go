@@ -1,4 +1,4 @@
-package prometheuscachethq
+package main
 
 import (
 	"crypto/tls"
@@ -18,6 +18,73 @@ const (
 	LOG_INFO  = 1
 )
 
+type PrometheusCachetParameters struct {
+	loglevel            string
+	httpPort            int
+	sslCert             string
+	sslKey              string
+	cachetRootCA        string
+	cachetSkipVerifySsl bool
+	cachetURL           string
+	cachetToken         string
+	prometheusToken     string
+	labelName           string
+}
+
+// NewPrometheusCachetParameters is here to fetch all env variable or parameters
+func NewPrometheusCachetParameters() *PrometheusCachetParameters {
+	p := &PrometheusCachetParameters{}
+
+	flag.StringVar(&p.prometheusToken, "prometheus_token", "", "token sent by Prometheus in the webhook configuration")
+	flag.StringVar(&p.cachetURL, "cachethq_url", "http://127.0.0.1/", "where to find CachetHQ")
+	flag.StringVar(&p.cachetToken, "cachethq_token", "", "token to send to CachetHQ")
+	flag.StringVar(&p.cachetRootCA, "cachethq_root_ca", "", "Root SSL CA to use against CachetHQ")
+	flag.BoolVar(&p.cachetSkipVerifySsl, "cachethq_skip_verify_ssl", false, "Dont check the SSL certificate of the https access to CachetHQ")
+	flag.StringVar(&p.loglevel, "log_level", "info", "log level: [info|debug]")
+	flag.StringVar(&p.sslCert, "ssl_cert_file", "", "to be used with ssl_key: enable https server")
+	flag.StringVar(&p.sslKey, "ssl_key_file", "", "to be used with ssl_cert: enable https server")
+	flag.StringVar(&p.labelName, "label_name", "alertname", "label to look for in Prometheus Alert info")
+	flag.IntVar(&p.httpPort, "http_port", 8080, "port to listen on")
+
+	flag.Parse()
+
+	// grab env variable (docker compliant)
+	if os.Getenv("PROMETHEUS_TOKEN") != "" {
+		p.prometheusToken = os.Getenv("PROMETHEUS_TOKEN")
+	}
+	if os.Getenv("CACHETHQ_URL") != "" {
+		p.cachetURL = os.Getenv("CACHETHQ_URL")
+	}
+	if os.Getenv("CACHETHQ_TOKEN") != "" {
+		p.cachetToken = os.Getenv("CACHETHQ_TOKEN")
+	}
+	if os.Getenv("CACHETHQ_ROOT_CA") != "" {
+		p.cachetRootCA = os.Getenv("CACHETHQ_ROOT_CA")
+	}
+	if os.Getenv("CACHETHQ_SKIP_VERIFY_SSL") == "true" {
+		p.cachetSkipVerifySsl = true
+	}
+	if os.Getenv("LOG_LEVEL") != "" {
+		p.loglevel = os.Getenv("LOG_LEVEL")
+	}
+	if os.Getenv("HTTP_PORT") != "" {
+		if port, err := strconv.Atoi(os.Getenv("HTTP_PORT")); err == nil {
+			p.httpPort = port
+		}
+	}
+	if os.Getenv("SSL_CERT_FILE") != "" {
+		p.sslCert = os.Getenv("SSL_CERT_FILE")
+	}
+	if os.Getenv("SSL_KEY_FILE") != "" {
+		p.sslKey = os.Getenv("SSL_KEY_FILE")
+	}
+
+	if os.Getenv("LABEL_NAME") != "" {
+		p.labelName = os.Getenv("LABEL_NAME")
+	}
+	return p
+}
+
 type PrometheusCachetConfig struct {
 	PrometheusToken string
 	Cachet          Cachet
@@ -26,67 +93,11 @@ type PrometheusCachetConfig struct {
 }
 
 func main() {
-	var loglevel string
-	var httpPort int
-	var sslCert string
-	var sslKey string
-	var cachetRootCA string
-	var cachetSkipVerifySsl bool
-	var cachetURL string
-	var cachetToken string
-	var prometheusToken string
-	var labelName string
-	flag.StringVar(&prometheusToken, "prometheus_token", "", "token sent by Prometheus in the webhook configuration")
-	flag.StringVar(&cachetURL, "cachethq_url", "http://127.0.0.1/", "where to find CachetHQ")
-	flag.StringVar(&cachetToken, "cachethq_token", "", "token to send to CachetHQ")
-	flag.StringVar(&cachetRootCA, "cachethq_root_ca", "", "Root SSL CA to use against CachetHQ")
-	flag.BoolVar(&cachetSkipVerifySsl, "cachethq_skip_verify_ssl", false, "Dont check the SSL certificate of the https access to CachetHQ")
-	flag.StringVar(&loglevel, "log_level", "info", "log level: [info|debug]")
-	flag.StringVar(&sslCert, "ssl_cert_file", "", "to be used with ssl_key: enable https server")
-	flag.StringVar(&sslKey, "ssl_key_file", "", "to be used with ssl_cert: enable https server")
-	flag.StringVar(&labelName, "label_name", "alertname", "label to look for in Prometheus Alert info")
-	flag.IntVar(&httpPort, "http_port", 8080, "port to listen on")
-
-	flag.Parse()
-
-	// grab env variable (docker compliant)
-	if os.Getenv("PROMETHEUS_TOKEN") != "" {
-		prometheusToken = os.Getenv("PROMETHEUS_TOKEN")
-	}
-	if os.Getenv("CACHETHQ_URL") != "" {
-		cachetURL = os.Getenv("CACHETHQ_URL")
-	}
-	if os.Getenv("CACHETHQ_TOKEN") != "" {
-		cachetToken = os.Getenv("CACHETHQ_TOKEN")
-	}
-	if os.Getenv("CACHETHQ_ROOT_CA") != "" {
-		cachetRootCA = os.Getenv("CACHETHQ_ROOT_CA")
-	}
-	if os.Getenv("CACHETHQ_SKIP_VERIFY_SSL") == "true" {
-		cachetSkipVerifySsl = true
-	}
-	if os.Getenv("LOG_LEVEL") != "" {
-		loglevel = os.Getenv("LOG_LEVEL")
-	}
-	if os.Getenv("HTTP_PORT") != "" {
-		if port, err := strconv.Atoi(os.Getenv("HTTP_PORT")); err == nil {
-			httpPort = port
-		}
-	}
-	if os.Getenv("SSL_CERT_FILE") != "" {
-		sslCert = os.Getenv("SSL_CERT_FILE")
-	}
-	if os.Getenv("SSL_KEY_FILE") != "" {
-		sslKey = os.Getenv("SSL_KEY_FILE")
-	}
-
-	if os.Getenv("LABEL_NAME") != "" {
-		labelName = os.Getenv("LABEL_NAME")
-	}
+	parameters := NewPrometheusCachetParameters()
 
 	caCertPool := x509.NewCertPool()
-	if cachetRootCA != "" {
-		caCert, err := ioutil.ReadFile(cachetRootCA)
+	if parameters.cachetRootCA != "" {
+		caCert, err := ioutil.ReadFile(parameters.cachetRootCA)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -98,35 +109,35 @@ func main() {
 		Transport: &http.Transport{
 			TLSClientConfig: &tls.Config{
 				RootCAs:            caCertPool,
-				InsecureSkipVerify: cachetSkipVerifySsl,
+				InsecureSkipVerify: parameters.cachetSkipVerifySsl,
 			},
 		},
 	}
 
 	config := PrometheusCachetConfig{
-		PrometheusToken: prometheusToken,
-		Cachet:          NewCachetImpl(cachetURL, cachetToken, httpClient),
-		LabelName:       labelName,
+		PrometheusToken: parameters.prometheusToken,
+		Cachet:          NewCachetImpl(parameters.cachetURL, parameters.cachetToken, httpClient),
+		LabelName:       parameters.labelName,
 		LogLevel:        LOG_INFO,
 	}
 
 	config.LogLevel = LOG_INFO
-	if loglevel == "debug" {
+	if parameters.loglevel == "debug" {
 		config.LogLevel = LOG_DEBUG
 	}
 
 	router := PrepareGinRouter(&config)
 
 	server := &http.Server{
-		Addr:           fmt.Sprintf(":%d", httpPort),
+		Addr:           fmt.Sprintf(":%d", parameters.httpPort),
 		Handler:        router,
 		ReadTimeout:    10 * time.Second,
 		WriteTimeout:   10 * time.Second,
 		MaxHeaderBytes: 1 << 20,
 	}
 
-	if sslCert != "" && sslKey != "" {
-		log.Fatal(server.ListenAndServeTLS(sslCert, sslKey))
+	if parameters.sslCert != "" && parameters.sslKey != "" {
+		log.Fatal(server.ListenAndServeTLS(parameters.sslCert, parameters.sslKey))
 	} else {
 		log.Fatal(server.ListenAndServe())
 	}

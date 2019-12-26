@@ -1,4 +1,4 @@
-package prometheuscachethq
+package main
 
 import (
 	"fmt"
@@ -68,11 +68,13 @@ func SubmitAlert(c *gin.Context, config *PrometheusCachetConfig) {
 	if err := c.ShouldBindJSON(&alerts); err == nil {
 		// talk to CachetHQ
 		status := 1 // "resolved"
+		componentStatus := 1
 		if alerts.Status == "firing" {
 			status = 4
+			componentStatus = 4
 		}
 
-		list, err := config.Cachet.ListAlerts()
+		list, err := config.Cachet.ListComponents()
 		if err != nil {
 			if config.LogLevel == LOG_DEBUG {
 				log.Println(err)
@@ -88,7 +90,7 @@ func SubmitAlert(c *gin.Context, config *PrometheusCachetConfig) {
 			if componentID, ok := list[alert.Labels[config.LabelName]]; ok {
 				if alreadyFired[componentID] == 0 {
 					alreadyFired[componentID] = 1
-					if err := config.Cachet.Alert(alert.Labels[config.LabelName], componentID, status); err != nil {
+					if err := config.Cachet.CreateIncident(alert.Labels[config.LabelName], componentID, status, componentStatus); err != nil {
 						if config.LogLevel == LOG_DEBUG {
 							log.Println(err)
 						}
