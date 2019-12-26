@@ -1,4 +1,4 @@
-package main
+package prometheuscachethq
 
 import (
 	"bytes"
@@ -101,10 +101,8 @@ func TestCachetHqComponent21(t *testing.T) {
 	config := PrometheusCachetConfig{
 		LabelName:       "alertname",
 		PrometheusToken: "promToken",
-		CachetURL:       mockServer.URL,
-		CachetToken:     "1234567890abcdef",
 		LogLevel:        LOG_DEBUG,
-		HttpClient:      &http.Client{},
+		Cachet:          NewCachetImpl(mockServer.URL, "1234567890abcdef", &http.Client{}),
 	}
 
 	router := PrepareGinRouter(&config)
@@ -142,11 +140,10 @@ func TestCachetHqComponent22(t *testing.T) {
 	defer teardown()
 
 	config := PrometheusCachetConfig{
+		LabelName:       "alertname",
 		PrometheusToken: "promToken",
-		CachetURL:       mockServer.URL,
-		CachetToken:     "1234567890abcdef",
 		LogLevel:        LOG_DEBUG,
-		HttpClient:      &http.Client{},
+		Cachet:          NewCachetImpl(mockServer.URL, "1234567890abcdef", &http.Client{}),
 	}
 
 	router := PrepareGinRouter(&config)

@@ -4,9 +4,8 @@ LABEL maintainer "Nicolas Zin <nicolas.zin@gmail.com>"
 WORKDIR /go/src/github.com/nzin/prometheus-cachethq
 COPY . .
 RUN set -x && \ 
-    go get github.com/stretchr/testify && \
-    go get -d -v . && \
-    go test . && \
+    go mod download && \
+    go test ./... && \
     CGO_ENABLED=0 GOOS=linux go build -a -o prometheus-cachethq .
 
 

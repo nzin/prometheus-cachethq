@@ -1,4 +1,4 @@
-package main
+package prometheuscachethq
 
 import (
 	"crypto/tls"
@@ -20,43 +20,44 @@ const (
 
 type PrometheusCachetConfig struct {
 	PrometheusToken string
-	CachetURL       string
-	CachetToken     string
+	Cachet          Cachet
 	LabelName       string
 	LogLevel        int
-	HttpClient      *http.Client
 }
 
 func main() {
-	var config PrometheusCachetConfig
 	var loglevel string
 	var httpPort int
 	var sslCert string
 	var sslKey string
 	var cachetRootCA string
 	var cachetSkipVerifySsl bool
-	flag.StringVar(&config.PrometheusToken, "prometheus_token", "", "token sent by Prometheus in the webhook configuration")
-	flag.StringVar(&config.CachetURL, "cachethq_url", "http://127.0.0.1/", "where to find CachetHQ")
-	flag.StringVar(&config.CachetToken, "cachethq_token", "", "token to send to CachetHQ")
+	var cachetURL string
+	var cachetToken string
+	var prometheusToken string
+	var labelName string
+	flag.StringVar(&prometheusToken, "prometheus_token", "", "token sent by Prometheus in the webhook configuration")
+	flag.StringVar(&cachetURL, "cachethq_url", "http://127.0.0.1/", "where to find CachetHQ")
+	flag.StringVar(&cachetToken, "cachethq_token", "", "token to send to CachetHQ")
 	flag.StringVar(&cachetRootCA, "cachethq_root_ca", "", "Root SSL CA to use against CachetHQ")
 	flag.BoolVar(&cachetSkipVerifySsl, "cachethq_skip_verify_ssl", false, "Dont check the SSL certificate of the https access to CachetHQ")
 	flag.StringVar(&loglevel, "log_level", "info", "log level: [info|debug]")
 	flag.StringVar(&sslCert, "ssl_cert_file", "", "to be used with ssl_key: enable https server")
 	flag.StringVar(&sslKey, "ssl_key_file", "", "to be used with ssl_cert: enable https server")
-	flag.StringVar(&config.LabelName, "label_name", "alertname", "label to look for in Prometheus Alert info")
+	flag.StringVar(&labelName, "label_name", "alertname", "label to look for in Prometheus Alert info")
 	flag.IntVar(&httpPort, "http_port", 8080, "port to listen on")
 
 	flag.Parse()
 
 	// grab env variable (docker compliant)
 	if os.Getenv("PROMETHEUS_TOKEN") != "" {
-		config.PrometheusToken = os.Getenv("PROMETHEUS_TOKEN")
+		prometheusToken = os.Getenv("PROMETHEUS_TOKEN")
 	}
 	if os.Getenv("CACHETHQ_URL") != "" {
-		config.CachetURL = os.Getenv("CACHETHQ_URL")
+		cachetURL = os.Getenv("CACHETHQ_URL")
 	}
 	if os.Getenv("CACHETHQ_TOKEN") != "" {
-		config.CachetToken = os.Getenv("CACHETHQ_TOKEN")
+		cachetToken = os.Getenv("CACHETHQ_TOKEN")
 	}
 	if os.Getenv("CACHETHQ_ROOT_CA") != "" {
 		cachetRootCA = os.Getenv("CACHETHQ_ROOT_CA")
@@ -80,7 +81,7 @@ func main() {
 	}
 
 	if os.Getenv("LABEL_NAME") != "" {
-		config.LabelName = os.Getenv("LABEL_NAME")
+		labelName = os.Getenv("LABEL_NAME")
 	}
 
 	caCertPool := x509.NewCertPool()
@@ -93,7 +94,7 @@ func main() {
 		caCertPool.AppendCertsFromPEM(caCert)
 	}
 
-	config.HttpClient = &http.Client{
+	httpClient := &http.Client{
 		Transport: &http.Transport{
 			TLSClientConfig: &tls.Config{
 				RootCAs:            caCertPool,
@@ -102,10 +103,18 @@ func main() {
 		},
 	}
 
+	config := PrometheusCachetConfig{
+		PrometheusToken: prometheusToken,
+		Cachet:          NewCachetImpl(cachetURL, cachetToken, httpClient),
+		LabelName:       labelName,
+		LogLevel:        LOG_INFO,
+	}
+
 	config.LogLevel = LOG_INFO
 	if loglevel == "debug" {
 		config.LogLevel = LOG_DEBUG
 	}
+
 	router := PrepareGinRouter(&config)
 
 	server := &http.Server{
