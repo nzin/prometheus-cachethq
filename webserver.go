@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -90,12 +91,35 @@ func SubmitAlert(c *gin.Context, config *PrometheusCachetConfig) {
 			if componentID, ok := list[alert.Labels[config.LabelName]]; ok {
 				if alreadyFired[componentID] == 0 {
 					alreadyFired[componentID] = 1
-					if err := config.Cachet.CreateIncident(alert.Labels[config.LabelName], componentID, status, componentStatus); err != nil {
-						if config.LogLevel == LOG_DEBUG {
-							log.Println(err)
+					if config.SquashIncident && status == 1 {
+
+						// if we want to "squash" event for a given incident
+						if incidents, err := config.Cachet.SearchIncidents(componentID); err == nil {
+							if len(incidents) > 0 {
+								layout := "2006-01-02 15:04:05 -0700"
+								createdAt, err := time.Parse(layout, incidents[0].CreatedAt+" "+config.Timezone)
+								if err == nil {
+									config.Cachet.UpdateIncident(alert.Labels[config.LabelName], componentID, incidents[0].Id, status, createdAt)
+								} else {
+									c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+									return
+								}
+							} else {
+								c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("No incident found for component %d\n", componentID)})
+								return
+							}
+						} else {
+							c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+							return
 						}
-						c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-						return
+					} else {
+						if err := config.Cachet.CreateIncident(alert.Labels[config.LabelName], componentID, status, componentStatus); err != nil {
+							if config.LogLevel == LOG_DEBUG {
+								log.Println(err)
+							}
+							c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+							return
+						}
 					}
 				}
 			}

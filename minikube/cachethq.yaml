@@ -51,9 +51,15 @@ spec:
           - name: CACHETHQ_URL
             value: "http://localhost:8000"
           - name: CACHETHQ_TOKEN
-            value: "GswCqve7hl9CZKBPDQQr"
+            value: "gO7iK9JxUHnG9btPrjMb"
           - name: LABEL_NAME
             value: "alertname"
+          - name: LOG_LEVEL
+            value: "debug"
+          - name: SQUASH_INCIDENT
+            value: "true"
+          - name: CACHETHQ_TIMEZONE
+            value: "-0500"
       - name: cachethq
         image: cachethq/docker:2.3-latest
         ports:

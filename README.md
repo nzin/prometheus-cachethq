@@ -79,6 +79,8 @@ Here is the exhaustive list of parameters. You can pass them either as command l
 | no                          | ssl_key_file             | SSL_KEY_FILE              | to be used with ssl_cert: enable https server            |
 | default = alertname         | label_name               | LABEL_NAME                | label to look for in Prometheus Alert info               |
 | default = 8080              | http_port                | HTTP_PORT                 | port to listen on                                        |
+| no                          | squash_incident          | SQUASH_INCIDENT           | if we dont want 2 events for incident created and solved |
+| default = +0000             | cachethq_timezone        | CACHETHQ_TIMEZONE         | The timezone configured in cachethq (-0600, +0000,...)  |
 
 
 
