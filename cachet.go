@@ -8,12 +8,14 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"time"
 )
 
 type CachetIncident struct {
-	Id          int `json:"id"`
-	ComponentId int `json:"component_id"`
-	Status      int `json:"status"`
+	Id          int    `json:"id"`
+	ComponentId int    `json:"component_id"`
+	Status      int    `json:"status"`
+	CreatedAt   string `json:"created_at"`
 }
 
 // Cachet is a facade to CachetHQ client calls
@@ -37,7 +39,7 @@ type Cachet interface {
 	// component status: component status: https://docs.cachethq.io/docs/component-statuses
 	// - status = 1 for alert resolved
 	// - status = 4 for alert fatal
-	UpdateIncident(componentName string, componentID, incidentId, status int) error
+	UpdateIncident(componentName string, componentID, incidentId, status int, createdAt time.Time) error
 }
 
 // cf https://docs.cachethq.io/reference#update-a-component
@@ -286,16 +288,20 @@ func (c *CachetImpl) CreateIncident(componentName string, componentID, status in
 	return nil
 }
 
-func (c *CachetImpl) UpdateIncident(componentName string, componentID, incidentId, status int) error {
+func (c *CachetImpl) UpdateIncident(componentName string, componentID, incidentId, status int, createdAt time.Time) error {
 	incidentName := fmt.Sprintf("%s down", componentName)
 	incidentMessage := fmt.Sprintf("Prometheus flagged service %s as down", componentName)
-	incidentStatus := 2 // "Identified"
+	incidentStatus := 2  // "Identified"
+	componentStatus := 4 // "Major Outage"
 
 	// if we are in status = 1 (alert resolved)
 	if status == 1 {
+		now := time.Now()
+		delay := now.Sub(createdAt)
 		incidentName = fmt.Sprintf("%s up", componentName)
-		incidentMessage = fmt.Sprintf("Prometheus flagged service %s as recovered", componentName)
-		incidentStatus = 4 // "Fixed"
+		incidentMessage = fmt.Sprintf("Prometheus flagged service %s as recovered (the service was down for %d minutes)", componentName, int(delay.Minutes()))
+		incidentStatus = 4  // "Fixed"
+		componentStatus = 1 // "Operational"
 	}
 
 	incident := &cachetHqIncident{
@@ -304,7 +310,7 @@ func (c *CachetImpl) UpdateIncident(componentName string, componentID, incidentI
 		Status:          incidentStatus,
 		ComponentID:     componentID,
 		Visible:         1,
-		ComponentStatus: incidentStatus,
+		ComponentStatus: componentStatus,
 	}
 
 	var buf bytes.Buffer

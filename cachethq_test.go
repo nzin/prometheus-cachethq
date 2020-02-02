@@ -116,6 +116,7 @@ func TestCachetHqComponent21(t *testing.T) {
 	}
 
 	go server.ListenAndServe()
+	time.Sleep(500 * time.Millisecond)
 	defer server.Close()
 
 	// send an alert

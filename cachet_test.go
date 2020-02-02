@@ -148,6 +148,6 @@ func TestCachetListComponents(t *testing.T) {
 	err = cachet.CreateIncident("API", 1, 1, 4)
 	assert.Nil(t, err)
 
-	err = cachet.UpdateIncident("API", 1, 4, 4)
+	err = cachet.UpdateIncident("API", 1, 4, 4, nil)
 	assert.Nil(t, err)
 }
