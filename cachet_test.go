@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -148,6 +149,6 @@ func TestCachetListComponents(t *testing.T) {
 	err = cachet.CreateIncident("API", 1, 1, 4)
 	assert.Nil(t, err)
 
-	err = cachet.UpdateIncident("API", 1, 4, 4, nil)
+	err = cachet.UpdateIncident("API", 1, 4, 4, time.Now())
 	assert.Nil(t, err)
 }
