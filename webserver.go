@@ -1,194 +1,12 @@
 package main
 
 import (
-	"bytes"
-	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"net/http"
-	"strings"
 
 	"github.com/gin-gonic/gin"
 )
-
-// cf https://docs.cachethq.io/reference#update-a-component
-// {
-//    "data": {
-//        "id": 1,
-//        "name": "Component Name",
-//        "description": "Description",
-//        "link": "",
-//        "status": 1,
-//        "order": 0,
-//        "group_id": 0,
-//        "created_at": "2015-08-01 12:00:00",
-//        "updated_at": "2015-08-01 12:00:00",
-//        "deleted_at": null,
-//        "status_name": "Operational",
-//        "tags": [
-//            "slug-of-tag": "Tag Name"
-//        ]
-//    }
-//}
-type cachetHqMessage struct {
-	Status int `json:"status"`
-}
-
-// cf https://docs.cachethq.io/reference#get-components
-// {
-//    "meta": {
-//        "pagination": {
-//            "total": 1,
-//            "count": 1,
-//            "per_page": 20,
-//            "current_page": 1,
-//            "total_pages": 1,
-//            "links": {
-//                "next_page": null,
-//                "previous_page": null
-//            }
-//        }
-//    },
-//    "data": [
-//        {
-//            "id": 1,
-//            "name": "API",
-//            "description": "This is the Cachet API.",
-//            "link": "",
-//            "status": 1,
-//            "order": 0,
-//            "group_id": 0,
-//            "created_at": "2015-07-24 14:42:10",
-//            "updated_at": "2015-07-24 14:42:10",
-//            "deleted_at": null,
-//            "status_name": "Operational",
-//          	"tags": [
-//            		"slug-of-tag": "Tag Name"
-//            ]
-//        }
-//    ]
-//}
-type cachetHqMessageList struct {
-	Meta struct {
-		Pagination struct {
-			CurrentPage int `json:"current_page"`
-			TotalPages  int `json:"total_pages"`
-		} `json:"pagination"`
-	} `json:"meta"`
-	Data []struct {
-		Id   int    `json:"id"`
-		Name string `json:"name"`
-	} `json:"data"`
-}
-
-// cf https://docs.cachethq.io/reference#incidents
-type cachetHqIncident struct {
-	Name            string `json:"name"`
-	Message         string `json:"message"`
-	Status          int    `json:"status"`
-	ComponentID     int    `json:"component_id"`
-	ComponentStatus int    `json:"component_status"`
-}
-
-// cachetList will fetch the different CachetHQ components (id/name) via a GET /api/v1/components
-// it will return a map[componentname]componentid
-func cachetList(apiURL, apiKEY string, client *http.Client) (map[string]int, error) {
-	componentsId := make(map[string]int)
-	var message cachetHqMessageList
-
-	// by precaution, remove the '/' at the end of apiURL
-	apiURL = strings.TrimRight(apiURL, "/")
-
-	// we loop "only" on the max first 100 pages
-	for page := 1; page < 100; page++ {
-		nextPage := fmt.Sprintf("%s/api/v1/components?page=%d", apiURL, page)
-
-		req, err := http.NewRequest(http.MethodGet, nextPage, nil)
-		if err != nil {
-			return nil, err
-		}
-
-		req.Header.Set("Content-Type", "application/json")
-		req.Header.Set("X-Cachet-Token", apiKEY)
-
-		resp, err := client.Do(req)
-		if err != nil {
-			return nil, err
-		}
-		defer resp.Body.Close()
-
-		body, _ := ioutil.ReadAll(resp.Body)
-		//		log.Println("response from CachetHQ when listing component's pages: ", string(body))
-
-		if err := json.Unmarshal(body, &message); err != nil {
-			return nil, err
-		}
-
-		for _, data := range message.Data {
-			componentsId[data.Name] = data.Id
-		}
-
-		// is there a next page?
-		if message.Meta.Pagination.CurrentPage >= message.Meta.Pagination.TotalPages {
-			// nope
-			return componentsId, nil
-		}
-	}
-	return componentsId, nil
-}
-
-// alert will update the choosen CachetHQ components (id/name) via a PUT /api/v1/components/<componentid>
-// component status: component status: https://docs.cachethq.io/docs/component-statuses
-// - status = 1 for alert resolved
-// - status = 4 for alert fatal
-func cachetAlert(componentName string, componentID, componentStatus int, apiURL, apiKEY string, client *http.Client) error {
-	incidentName := fmt.Sprintf("%s down", componentName)
-	incidentMessage := fmt.Sprintf("Prometheus flagged service %s as down", componentName)
-	incidentStatus := 2 // "Identified"
-
-	// if we are in status = 1 (alert resolved)
-	if componentStatus == 1 {
-		incidentName = fmt.Sprintf("%s up", componentName)
-		incidentMessage = fmt.Sprintf("Prometheus flagged service %s as recovered", componentName)
-		incidentStatus = 4 // "Fixed"
-	}
-
-	incident := &cachetHqIncident{
-		Name:            incidentName,
-		Message:         incidentMessage,
-		Status:          incidentStatus,
-		ComponentID:     componentID,
-		ComponentStatus: componentStatus,
-	}
-
-	// by precaution, remove the '/' at the end of apiURL
-	apiURL = strings.TrimRight(apiURL, "/")
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(incident); err != nil {
-		return err
-	}
-
-	req, err := http.NewRequest(http.MethodPost, fmt.Sprintf("%s/api/v1/incidents", apiURL), &buf)
-	if err != nil {
-		return err
-	}
-
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-Cachet-Token", apiKEY)
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	//body, _ := ioutil.ReadAll(resp.Body)
-	//log.Println("response from CachetHQ when sending alert: ", string(body))
-
-	return nil
-}
 
 /*
 cf https://prometheus.io/docs/alerting/configuration/#webhook_config
@@ -250,11 +68,13 @@ func SubmitAlert(c *gin.Context, config *PrometheusCachetConfig) {
 	if err := c.ShouldBindJSON(&alerts); err == nil {
 		// talk to CachetHQ
 		status := 1 // "resolved"
+		componentStatus := 1
 		if alerts.Status == "firing" {
 			status = 4
+			componentStatus = 4
 		}
 
-		list, err := cachetList(config.CachetURL, config.CachetToken, config.HttpClient)
+		list, err := config.Cachet.ListComponents()
 		if err != nil {
 			if config.LogLevel == LOG_DEBUG {
 				log.Println(err)
@@ -270,7 +90,7 @@ func SubmitAlert(c *gin.Context, config *PrometheusCachetConfig) {
 			if componentID, ok := list[alert.Labels[config.LabelName]]; ok {
 				if alreadyFired[componentID] == 0 {
 					alreadyFired[componentID] = 1
-					if err := cachetAlert(alert.Labels[config.LabelName], componentID, status, config.CachetURL, config.CachetToken, config.HttpClient); err != nil {
+					if err := config.Cachet.CreateIncident(alert.Labels[config.LabelName], componentID, status, componentStatus); err != nil {
 						if config.LogLevel == LOG_DEBUG {
 							log.Println(err)
 						}
