@@ -8,7 +8,6 @@ import (
 	"log"
 	"net/http"
 	"strings"
-	"time"
 )
 
 type CachetIncident struct {
@@ -16,6 +15,7 @@ type CachetIncident struct {
 	ComponentId int    `json:"component_id"`
 	Status      int    `json:"status"`
 	CreatedAt   string `json:"created_at"`
+	UpdatedAt   string `json:"updated_at"`
 }
 
 // Cachet is a facade to CachetHQ client calls
@@ -25,6 +25,9 @@ type Cachet interface {
 	ListComponents() (map[string]int, error)
 
 	SearchComponent(name string) (int, error)
+
+	// Return an incident
+	ReadIncident(incidentId int) (*CachetIncident, error)
 
 	// Returns all incidents for a given component, ASC sorted (i.e. the last incident, is the first in the list)
 	SearchIncidents(componentId int) ([]*CachetIncident, error)
@@ -39,7 +42,7 @@ type Cachet interface {
 	// component status: component status: https://docs.cachethq.io/docs/component-statuses
 	// - status = 1 for alert resolved
 	// - status = 4 for alert fatal
-	UpdateIncident(componentName string, componentID, incidentId, status int, createdAt time.Time) error
+	UpdateIncident(componentName string, componentID, incidentId, status int, message string) error
 }
 
 // cf https://docs.cachethq.io/reference#update-a-component
@@ -120,6 +123,10 @@ type cachetHqIncidemntsList struct {
 		} `json:"pagination"`
 	} `json:"meta"`
 	Data []CachetIncident `json:"data"`
+}
+
+type cachetHqIncidentRead struct {
+	Data CachetIncident `json:"data"`
 }
 
 // cf https://docs.cachethq.io/reference#incidents
@@ -288,18 +295,16 @@ func (c *CachetImpl) CreateIncident(componentName string, componentID, status in
 	return nil
 }
 
-func (c *CachetImpl) UpdateIncident(componentName string, componentID, incidentId, status int, createdAt time.Time) error {
+func (c *CachetImpl) UpdateIncident(componentName string, componentID, incidentId, status int, message string) error {
 	incidentName := fmt.Sprintf("%s down", componentName)
-	incidentMessage := fmt.Sprintf("Prometheus flagged service %s as down", componentName)
+	incidentMessage := message
 	incidentStatus := 2  // "Identified"
 	componentStatus := 4 // "Major Outage"
 
 	// if we are in status = 1 (alert resolved)
 	if status == 1 {
-		now := time.Now()
-		delay := now.Sub(createdAt)
 		incidentName = fmt.Sprintf("%s up", componentName)
-		incidentMessage = fmt.Sprintf("Prometheus flagged service %s as recovered (the service was down for %d minutes)", componentName, int(delay.Minutes()))
+		incidentMessage = message
 		incidentStatus = 4  // "Fixed"
 		componentStatus = 1 // "Operational"
 	}
@@ -346,46 +351,72 @@ func (c *CachetImpl) SearchIncidents(componentId int) ([]*CachetIncident, error)
 	incidents := make([]*CachetIncident, 0)
 	var message cachetHqIncidemntsList
 
-	// we loop "only" on the max first 100 pages
-	for page := 1; page < 100; page++ {
-		nextPage := fmt.Sprintf("%s/api/v1/incidents?component_id=%d&sort=id&order=desc", c.apiURL, componentId)
-
-		req, err := http.NewRequest(http.MethodGet, nextPage, nil)
-		if err != nil {
-			return nil, err
-		}
-
-		req.Header.Set("Content-Type", "application/json")
-		req.Header.Set("X-Cachet-Token", c.apiKey)
-
-		resp, err := c.client.Do(req)
-		if err != nil {
-			return nil, err
-		}
-		defer resp.Body.Close()
-
-		body, err := ioutil.ReadAll(resp.Body)
-		if resp.StatusCode != 200 {
-			if err != nil {
-				return nil, err
-			}
-			log.Println(string(body))
-		}
-
-		if err := json.Unmarshal(body, &message); err != nil {
-			return nil, err
-		}
-
-		for _, data := range message.Data {
-			copydata := data
-			incidents = append(incidents, &copydata)
-		}
-
-		// is there a next page?
-		if message.Meta.Pagination.CurrentPage >= message.Meta.Pagination.TotalPages {
-			// nope
-			return incidents, nil
-		}
+	// pagination doesn't work
+	nextPage := fmt.Sprintf("%s/api/v1/incidents?component_id=%d&sort=id&order=desc&per_page=1000", c.apiURL, componentId)
+	req, err := http.NewRequest(http.MethodGet, nextPage, nil)
+	if err != nil {
+		return nil, err
 	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Cachet-Token", c.apiKey)
+
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if resp.StatusCode != 200 {
+		if err != nil {
+			return nil, err
+		}
+		log.Println(string(body))
+	}
+
+	if err := json.Unmarshal(body, &message); err != nil {
+		return nil, err
+	}
+
+	for _, data := range message.Data {
+		copydata := data
+		incidents = append(incidents, &copydata)
+	}
+
 	return incidents, nil
+}
+
+func (c *CachetImpl) ReadIncident(incidentId int) (*CachetIncident, error) {
+	var incident cachetHqIncidentRead
+
+	request := fmt.Sprintf("%s/api/v1/incidents/%d", c.apiURL, incidentId)
+
+	req, err := http.NewRequest(http.MethodGet, request, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Cachet-Token", c.apiKey)
+
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if resp.StatusCode != 200 {
+		if err != nil {
+			return nil, err
+		}
+		log.Println(string(body))
+	}
+
+	if err := json.Unmarshal(body, &incident); err != nil {
+		return nil, err
+	}
+
+	return &incident.Data, nil
 }

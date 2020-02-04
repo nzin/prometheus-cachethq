@@ -91,28 +91,58 @@ func SubmitAlert(c *gin.Context, config *PrometheusCachetConfig) {
 			if componentID, ok := list[alert.Labels[config.LabelName]]; ok {
 				if alreadyFired[componentID] == 0 {
 					alreadyFired[componentID] = 1
-					if config.SquashIncident && status == 1 {
 
-						// if we want to "squash" event for a given incident
-						if incidents, err := config.Cachet.SearchIncidents(componentID); err == nil {
-							if len(incidents) > 0 {
-								layout := "2006-01-02 15:04:05 -0700"
-								createdAt, err := time.Parse(layout, incidents[0].CreatedAt+" "+config.Timezone)
-								if err == nil {
-									config.Cachet.UpdateIncident(alert.Labels[config.LabelName], componentID, incidents[0].Id, status, createdAt)
-								} else {
+					if config.SquashIncident {
+						// firing
+						if status != 1 {
+							incidents, err := config.Cachet.SearchIncidents(componentID)
+							if err != nil {
+								c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+								return
+							}
+							// if no open incident currently, let's create a new one
+							if len(incidents) == 0 || incidents[0].Status == 4 {
+								if err := config.Cachet.CreateIncident(alert.Labels[config.LabelName], componentID, status, componentStatus); err != nil {
+									if config.LogLevel == LOG_DEBUG {
+										log.Println(err)
+									}
 									c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 									return
 								}
+							}
+						} else { // resolved
+							// if we want to "squash" event for a given incident
+							if incidents, err := config.Cachet.SearchIncidents(componentID); err == nil {
+								if len(incidents) > 0 {
+									if err == nil {
+										config.Cachet.UpdateIncident(alert.Labels[config.LabelName], componentID, incidents[0].Id, status, fmt.Sprintf("Prometheus flagged service %s as up", alert.Labels[config.LabelName]))
+
+										incidentID := incidents[0].Id
+										componentName := alert.Labels[config.LabelName]
+
+										if incident, err := config.Cachet.ReadIncident(incidentID); err == nil {
+											layout := "2006-01-02 15:04:05"
+											createdAt, err1 := time.Parse(layout, incident.CreatedAt)
+											updatedAt, err2 := time.Parse(layout, incident.UpdatedAt)
+
+											if err1 == nil && err2 == nil {
+												config.Cachet.UpdateIncident(componentName, componentID, incidentID, status, fmt.Sprintf("Prometheus flagged service %s as up (service was down for %d minutes)", componentName, int(updatedAt.Sub(createdAt).Minutes())))
+											}
+										}
+									} else {
+										c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+										return
+									}
+								} else {
+									c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("No incident found for component %d\n", componentID)})
+									return
+								}
 							} else {
-								c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("No incident found for component %d\n", componentID)})
+								c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 								return
 							}
-						} else {
-							c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-							return
 						}
-					} else {
+					} else { // we dont 'squash' so let's create a new incident
 						if err := config.Cachet.CreateIncident(alert.Labels[config.LabelName], componentID, status, componentStatus); err != nil {
 							if config.LogLevel == LOG_DEBUG {
 								log.Println(err)
