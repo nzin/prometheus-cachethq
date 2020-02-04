@@ -58,8 +58,6 @@ spec:
             value: "debug"
           - name: SQUASH_INCIDENT
             value: "true"
-          - name: CACHETHQ_TIMEZONE
-            value: "-0500"
       - name: cachethq
         image: cachethq/docker:2.3-latest
         ports:

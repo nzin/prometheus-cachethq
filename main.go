@@ -30,7 +30,6 @@ type PrometheusCachetParameters struct {
 	prometheusToken     string
 	labelName           string
 	squashIncident      bool
-	cachetTimezone      string
 }
 
 // NewPrometheusCachetParameters is here to fetch all env variable or parameters
@@ -48,13 +47,9 @@ func NewPrometheusCachetParameters() *PrometheusCachetParameters {
 	flag.StringVar(&p.labelName, "label_name", "alertname", "label to look for in Prometheus Alert info")
 	flag.IntVar(&p.httpPort, "http_port", 8080, "port to listen on")
 	flag.BoolVar(&p.squashIncident, "squash_incident", false, "do we want to merge down and up event into one incident")
-	flag.StringVar(&p.cachetTimezone, "cachethq_timezone", "+0000", "Timezone configured in CachetHQ: UTC=>+0000, EST=>-0600, ...")
 	flag.Parse()
 
 	// grab env variable (docker compliant)
-	if os.Getenv("CACHETHQ_TIMEZONE") != "" {
-		p.cachetTimezone = os.Getenv("CACHETHQ_TIMEZONE")
-	}
 	if os.Getenv("PROMETHEUS_TOKEN") != "" {
 		p.prometheusToken = os.Getenv("PROMETHEUS_TOKEN")
 	}
@@ -101,7 +96,6 @@ type PrometheusCachetConfig struct {
 	LabelName       string
 	LogLevel        int
 	SquashIncident  bool
-	Timezone        string
 }
 
 func main() {
@@ -132,7 +126,6 @@ func main() {
 		LabelName:       parameters.labelName,
 		LogLevel:        LOG_INFO,
 		SquashIncident:  parameters.squashIncident,
-		Timezone:        parameters.cachetTimezone,
 	}
 
 	config.LogLevel = LOG_INFO
